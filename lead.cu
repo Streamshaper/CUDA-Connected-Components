@@ -129,6 +129,13 @@ int main() {
         label_propagation_kernel<<<blocks, threads>>>(
             d_labels, d_active, d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag
         );
+
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("CUDA error: %s\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
         cudaDeviceSynchronize();
 
         cudaMemcpy(&h_changed_flag, d_changed_flag, sizeof(int), cudaMemcpyDeviceToHost);
@@ -140,6 +147,14 @@ int main() {
 
         // Reset next_active
         reset_active_kernel<<<blocks, threads>>>(d_next_active, n_nodes);
+
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("CUDA error: %s\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
+
         cudaDeviceSynchronize();
 
     } while (h_changed_flag);
