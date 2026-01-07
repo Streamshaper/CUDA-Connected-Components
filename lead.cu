@@ -12,8 +12,8 @@ uint64_t* ind_ptr;
 // ----------------------- CUDA Kernels -----------------------
 __global__ void label_propagation_kernel(
     uint64_t* labels,
-    uint8_t* active,
-    uint8_t* next_active,
+    int* active,
+    int* next_active,
     uint64_t* indices,
     uint64_t* ind_ptr,
     uint64_t n_nodes,
@@ -52,7 +52,7 @@ __global__ void reset_active_kernel(uint8_t* next_active, uint64_t n_nodes) {
 }
 
 // AUX
-void open_matrix (char* name)
+void open_matrix (const char* name)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
     if (!matfp) { fprintf(stderr,"Cannot open file\n"); exit(2); }
@@ -66,8 +66,8 @@ void open_matrix (char* name)
     mat_sparse_t *A = (mat_sparse_t*)Avar->data; // Correct way to access sparse data
     size_t m = Avar->dims[0], n = Avar->dims[1], nnz = A->nzmax;
 
-    indices = malloc (nnz*sizeof(uint64_t));
-    ind_ptr = malloc ((n+1)*sizeof(uint64_t));
+    indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));
+    ind_ptr = (uint64_t*)malloc ((n+1)*sizeof(uint64_t));
 
     for (size_t q=0; q<nnz; q++)
         indices[q] = (uint64_t)A->ir[q];
@@ -79,7 +79,6 @@ void open_matrix (char* name)
 
     Mat_VarFree(problem);
     Mat_Close(matfp);
-    if (!bench_active)
         printf ("The graph has %llu nodes and %llu edges in total.\n", n_nodes, (uint64_t)nnz/2);
 
 }
@@ -90,8 +89,8 @@ int main() {
     open_matrix ("com-LiveJournal.mat");
 
     uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
-    uint8_t* active = (uint8_t*)malloc(n_nodes * sizeof(uint8_t));
-    uint8_t* next_active = (uint8_t*)malloc(n_nodes * sizeof(uint8_t));
+    int* active = (int*)malloc(n_nodes * sizeof(int));
+    int* next_active = (int*)malloc(n_nodes * sizeof(int));
     for (uint64_t i = 0; i < n_nodes; i++) {
         labels[i] = i;  // initial label
         active[i] = 1;
@@ -100,7 +99,7 @@ int main() {
 
     // --- Device arrays ---
     uint64_t *d_labels, *d_indices, *d_ind_ptr;
-    uint8_t *d_active, *d_next_active;
+    int *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
 
     cudaMalloc(&d_labels, n_nodes * sizeof(uint64_t));
