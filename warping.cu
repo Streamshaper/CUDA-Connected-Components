@@ -15,10 +15,11 @@ do { \
 } while (0)
 
 
-// Graph data (CSR format)
+// Graph data
 uint64_t n_nodes;
 uint64_t* indices;
 uint64_t* ind_ptr;
+char* matrix_name;
 
 // ----------------------- CUDA Kernels -----------------------
 __global__ void label_propagation_kernel(
@@ -65,7 +66,6 @@ __global__ void label_propagation_kernel(
     }
 }
 
-
 __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) {
     uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
@@ -73,7 +73,7 @@ __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) {
 }
 
 // AUX
-void open_matrix (const char* name)
+void open_matrix (char* name)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
     if (!matfp) { fprintf(stderr,"Cannot open file\n"); exit(2); }
@@ -100,23 +100,29 @@ void open_matrix (const char* name)
 
     Mat_VarFree(problem);
     Mat_Close(matfp);
-        printf ("The graph has %lu nodes and %lu edges in total.\n", n_nodes, (uint64_t)nnz/2);
-
+    printf ("The graph has %lu nodes and %lu edges in total.\n", n_nodes, (uint64_t)nnz/2);
 }
 
 // ----------------------- Main Function -----------------------
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 
+    if (argc > 1)
+        matrix_name = argv[1];
+    else{
+        printf ("Missing argument: matrix_name\n");
+        exit (0);
+    }
+    
     int threads = 256;
-    if (argc > 1 && atoi(argv[1])<8192 && atoi(argv[1])>1)	 
-    	threads = atoi(argv[1]);
+    if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)	 
+    	threads = atoi(argv[2]);
     threads = (threads / 32) * 32;
     if (threads == 0) threads = 32;
 
+
     printf("Running with %d threads (%d warps per block)\n", threads, threads / 32);
 
-
-    open_matrix ("com-LiveJournal.mat");
+    open_matrix (matrix_name);
 
     uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
     int* active = (int*)malloc(n_nodes * sizeof(int));
@@ -161,9 +167,8 @@ int main(int argc, char *argv[]) {
         h_changed_flag = 0;
         cudaMemcpy(d_changed_flag, &h_changed_flag, sizeof(int), cudaMemcpyHostToDevice);
 
-        label_propagation_kernel<<<blocks, threads>>>(
-            d_labels, d_active, d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag
-        );
+        label_propagation_kernel<<<blocks, threads>>> (d_labels, d_active, 
+            d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag);
 
         CUDA_CHECK ();
         cudaDeviceSynchronize();
@@ -177,7 +182,7 @@ int main(int argc, char *argv[]) {
         d_next_active = temp;
 
         // Reset next_active
-        reset_active_kernel<<<blocks, threads>>>(d_next_active, n_nodes);
+        reset_active_kernel<<<blocks, threads>>> (d_next_active, n_nodes);
 
         CUDA_CHECK ();
         cudaDeviceSynchronize();
