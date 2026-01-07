@@ -45,7 +45,7 @@ __global__ void label_propagation_kernel(
     }
 }
 
-__global__ void reset_active_kernel(uint8_t* next_active, uint64_t n_nodes) {
+__global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) {
     uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
     next_active[i] = 0;
@@ -103,15 +103,15 @@ int main() {
     int *d_changed_flag, h_changed_flag;
 
     cudaMalloc(&d_labels, n_nodes * sizeof(uint64_t));
-    cudaMalloc(&d_active, n_nodes * sizeof(uint8_t));
-    cudaMalloc(&d_next_active, n_nodes * sizeof(uint8_t));
+    cudaMalloc(&d_active, n_nodes * sizeof(int));
+    cudaMalloc(&d_next_active, n_nodes * sizeof(int));
     cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(uint64_t));
     cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint64_t));
     cudaMalloc(&d_changed_flag, sizeof(int));
 
     cudaMemcpy(d_labels, labels, n_nodes * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_active, active, n_nodes * sizeof(uint8_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_next_active, next_active, n_nodes * sizeof(uint8_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_active, active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_next_active, next_active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint64_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
