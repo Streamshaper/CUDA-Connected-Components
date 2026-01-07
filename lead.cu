@@ -64,7 +64,7 @@ void open_matrix (const char* name)
     if (!Avar || Avar->class_type != MAT_C_SPARSE) { fprintf(stderr,"A is not sparse\n"); exit(2); }
 
     mat_sparse_t *A = (mat_sparse_t*)Avar->data; // Correct way to access sparse data
-    size_t m = Avar->dims[0], n = Avar->dims[1], nnz = A->nzmax;
+    size_t n = Avar->dims[1], nnz = A->nzmax;
 
     indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));
     ind_ptr = (uint64_t*)malloc ((n+1)*sizeof(uint64_t));
@@ -79,7 +79,7 @@ void open_matrix (const char* name)
 
     Mat_VarFree(problem);
     Mat_Close(matfp);
-        printf ("The graph has %llu nodes and %llu edges in total.\n", n_nodes, (uint64_t)nnz/2);
+        printf ("The graph has %lu nodes and %lu edges in total.\n", n_nodes, (uint64_t)nnz/2);
 
 }
 
