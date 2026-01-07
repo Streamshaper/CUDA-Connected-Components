@@ -95,7 +95,12 @@ void open_matrix (const char* name)
 }
 
 // ----------------------- Main Function -----------------------
-int main() {
+int main(int argc, char *argv[]) {
+
+    int threads = 256;
+    if (argc > 1 && atoi(argv[1])<8192 && atoi(argv[1])>1)	 
+    	threads = atoi(argv[1]);
+    printf ("Running with %d threads.\n", threads);
 
     open_matrix ("com-LiveJournal.mat");
 
@@ -127,10 +132,15 @@ int main() {
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
     // --- Launch parameters ---
-    int threads = 256;
     int blocks = (n_nodes + threads - 1) / threads;
 
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
     // --- Iterative label propagation ---
+    cudaEventRecord(start); 
     int iteration = 0;
     do {
         iteration++;
@@ -163,6 +173,8 @@ int main() {
 
     // --- Copy labels back to host ---
     cudaMemcpy(labels, d_labels, n_nodes * sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
 
     // --- Count unique labels (serial) ---
     uint8_t* found = (uint8_t*)calloc(n_nodes, sizeof(uint8_t));
@@ -174,6 +186,9 @@ int main() {
         }
     }
     printf("Connected Components: %lu\n", components);
+    float ms = 0.0f;
+    cudaEventElapsedTime(&ms, start, stop);
+    printf("GPU kernel time: %.3f ms\n", ms);
 
     // --- Cleanup ---
     cudaFree(d_labels);
@@ -182,6 +197,9 @@ int main() {
     cudaFree(d_indices);
     cudaFree(d_ind_ptr);
     cudaFree(d_changed_flag);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
     free(labels);
     free(active);
