@@ -31,39 +31,44 @@ __global__ void label_propagation_kernel(
     uint64_t n_nodes,
     int* changed_flag)
 {
-    int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int warp_id = global_tid >> 5;        // / 32
+    int warps_per_block = blockDim.x >> 5;
+    int warp_in_block = threadIdx.x >> 5;
+    int warp_id = blockIdx.x * warps_per_block + warp_in_block;
     int lane    = threadIdx.x & 31;
+    int total_warps = gridDim.x * warps_per_block;
 
-    if (warp_id >= n_nodes) return;
-    if (!active[warp_id]) return;
+    if (warp_id >= total_warps) return;
 
-    uint64_t start = ind_ptr[warp_id];
-    uint64_t end   = ind_ptr[warp_id + 1];
-    if (start == end) return;
+    for (uint64_t node = warp_id; node < n_nodes; node += total_warps) {
+        if (!active[node]) continue;
+        uint64_t start = ind_ptr[node];
+        uint64_t end   = ind_ptr[node + 1];
+        if (start == end) continue;
 
-    uint64_t local_min = UINT64_MAX;
+        uint64_t local_min = UINT64_MAX;
 
-    // Parallel neighbor traversal
-    for (uint64_t k = start + lane; k < end; k += 32) {
-        uint64_t nbr = indices[k];
-        local_min = min(local_min, labels[nbr]);
-    }
+        // Parallel neighbor traversal
+        for (uint64_t k = start + lane; k < end; k += 32) {
+            uint64_t nbr = indices[k];
+            local_min = min(local_min, labels[nbr]);
+        }
 
-    // Warp reduction
-    for (int offset = 16; offset > 0; offset >>= 1)
-        local_min = min(local_min,
+        // Warp reduction
+        for (int offset = 16; offset > 0; offset >>= 1)
+            local_min = min(local_min,
             __shfl_down_sync(0xffffffff, local_min, offset));
 
-    // Lane 0 performs the update
-    if (lane == 0 && local_min < labels[warp_id]) {
-        labels[warp_id] = local_min;
-        atomicExch(changed_flag, 1);
+        // Lane 0 performs the update
+        if (lane == 0 && local_min < labels[node]) {
+            labels[node] = local_min;
+            atomicExch(changed_flag, 1);
 
-        // Wake neighbors
-        for (uint64_t k = start; k < end; k++)
-            atomicExch(&next_active[indices[k]], 1);
+            // Wake neighbors
+            for (uint64_t k = start; k < end; k++)
+                atomicExch(&next_active[indices[k]], 1);
+        }
     }
+
 }
 
 __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) {
@@ -152,8 +157,9 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
     // --- Launch parameters ---
-    int warps = n_nodes;
-    int blocks = ((warps * 32) + threads - 1) / threads;
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
+    int blocks = 4 * prop.multiProcessorCount;
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -182,7 +188,8 @@ int main(int argc, char* argv[]) {
         d_next_active = temp;
 
         // Reset next_active
-        reset_active_kernel<<<blocks, threads>>> (d_next_active, n_nodes);
+        int reset_blocks = (n_nodes + threads - 1) / threads;
+        reset_active_kernel<<<reset_blocks, threads>>>(d_next_active, n_nodes);
 
         CUDA_CHECK ();
         cudaDeviceSynchronize();
@@ -224,6 +231,9 @@ int main(int argc, char* argv[]) {
     free(active);
     free(next_active);
     free(found);
+    free(indices);
+    free(ind_ptr);
+
 
     return 0;
 }
