@@ -36,7 +36,7 @@ __global__ void label_propagation_kernel(
 
     if (min_label < labels[i]) {
         labels[i] = min_label;
-        *changed_flag = 1;  // signal host that a change occurred
+        atomicExch(changed_flag, 1);  // signal host that a change occurred
 
         // Mark neighbors as active for next iteration
         for (uint64_t k = start; k < end; k++) {
