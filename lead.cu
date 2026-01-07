@@ -156,7 +156,7 @@ int main() {
             components++;
         }
     }
-    printf("Connected Components: %llu\n", components);
+    printf("Connected Components: %lu\n", components);
 
     // --- Cleanup ---
     cudaFree(d_labels);
