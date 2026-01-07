@@ -4,6 +4,17 @@
 #include <cuda_runtime.h>
 #include <matio.h>
 
+#define CUDA_CHECK() \
+do { \
+    cudaError_t err = cudaGetLastError(); \
+    if (err != cudaSuccess) { \
+        printf("CUDA error %s at %s:%d\n", \
+               cudaGetErrorString(err), __FILE__, __LINE__); \
+        exit(1); \
+    } \
+} while (0)
+
+
 // Graph data (CSR format)
 uint64_t n_nodes;
 uint64_t* indices;
@@ -130,13 +141,9 @@ int main() {
             d_labels, d_active, d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag
         );
 
-        cudaError_t err = cudaGetLastError();
-        if (err != cudaSuccess) {
-            printf("CUDA error: %s\n", cudaGetErrorString(err));
-            exit(1);
-        }
-
+        CUDA_CHECK ();
         cudaDeviceSynchronize();
+        CUDA_CHECK ();
 
         cudaMemcpy(&h_changed_flag, d_changed_flag, sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -148,14 +155,9 @@ int main() {
         // Reset next_active
         reset_active_kernel<<<blocks, threads>>>(d_next_active, n_nodes);
 
-        cudaError_t err = cudaGetLastError();
-        if (err != cudaSuccess) {
-            printf("CUDA error: %s\n", cudaGetErrorString(err));
-            exit(1);
-        }
-
-
+        CUDA_CHECK ();
         cudaDeviceSynchronize();
+        CUDA_CHECK ();
 
     } while (h_changed_flag);
 
