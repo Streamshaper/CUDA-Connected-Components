@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <cuda_runtime.h>
+#include <matio.h>
 
 // Graph data (CSR format)
 uint64_t n_nodes;
@@ -50,12 +51,44 @@ __global__ void reset_active_kernel(uint8_t* next_active, uint64_t n_nodes) {
     next_active[i] = 0;
 }
 
+// AUX
+void open_matrix (char* name)
+{
+    mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
+    if (!matfp) { fprintf(stderr,"Cannot open file\n"); exit(2); }
+
+    matvar_t *problem = Mat_VarRead(matfp, "Problem");
+    if (!problem || problem->class_type != MAT_C_STRUCT) { fprintf(stderr,"Problem struct missing\n"); exit(2); }
+
+    matvar_t *Avar = Mat_VarGetStructFieldByName(problem, "A", 0);
+    if (!Avar || Avar->class_type != MAT_C_SPARSE) { fprintf(stderr,"A is not sparse\n"); exit(2); }
+
+    mat_sparse_t *A = (mat_sparse_t*)Avar->data; // Correct way to access sparse data
+    size_t m = Avar->dims[0], n = Avar->dims[1], nnz = A->nzmax;
+
+    indices = malloc (nnz*sizeof(uint64_t));
+    ind_ptr = malloc ((n+1)*sizeof(uint64_t));
+
+    for (size_t q=0; q<nnz; q++)
+        indices[q] = (uint64_t)A->ir[q];
+
+    for (size_t q=0; q<=n; q++)
+        ind_ptr[q] = (uint64_t)A->jc[q];
+        
+    n_nodes = (uint64_t)n;
+
+    Mat_VarFree(problem);
+    Mat_Close(matfp);
+    if (!bench_active)
+        printf ("The graph has %llu nodes and %llu edges in total.\n", n_nodes, (uint64_t)nnz/2);
+
+}
+
 // ----------------------- Main Function -----------------------
 int main() {
-    // --- Example: initialize graph here (replace with your matrix loader) ---
-    // For demonstration, let's assume n_nodes, indices, and ind_ptr are already set.
 
-    // --- Host arrays ---
+    open_matrix ("com-LiveJournal.mat");
+
     uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
     uint8_t* active = (uint8_t*)malloc(n_nodes * sizeof(uint8_t));
     uint8_t* next_active = (uint8_t*)malloc(n_nodes * sizeof(uint8_t));
