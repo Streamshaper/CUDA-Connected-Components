@@ -134,7 +134,7 @@ int main() {
         cudaMemcpy(&h_changed_flag, d_changed_flag, sizeof(int), cudaMemcpyDeviceToHost);
 
         // Swap active arrays
-        uint8_t* temp = d_active;
+        int* temp = d_active;
         d_active = d_next_active;
         d_next_active = temp;
 
