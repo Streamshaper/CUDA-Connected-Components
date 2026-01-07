@@ -15,10 +15,11 @@ do { \
 } while (0)
 
 
-// Graph data (CSR format)
+// Graph data
 uint64_t n_nodes;
 uint64_t* indices;
 uint64_t* ind_ptr;
+char* matrix_name;
 
 // ----------------------- CUDA Kernels -----------------------
 __global__ void label_propagation_kernel(
@@ -63,7 +64,7 @@ __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) {
 }
 
 // AUX
-void open_matrix (const char* name)
+void open_matrix (char* name)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
     if (!matfp) { fprintf(stderr,"Cannot open file\n"); exit(2); }
@@ -97,12 +98,20 @@ void open_matrix (const char* name)
 // ----------------------- Main Function -----------------------
 int main(int argc, char *argv[]) {
 
+    if (argc > 1)
+        matrix_name = argv[1];
+    else{
+        printf ("Missing argument: matrix_name\n");
+        exit (0);
+    }
+    
     int threads = 256;
-    if (argc > 1 && atoi(argv[1])<8192 && atoi(argv[1])>1)	 
-    	threads = atoi(argv[1]);
-    printf ("Running with %d threads.\n", threads);
+    if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)	 
+    	threads = atoi(argv[2]);
+    threads = (threads / 32) * 32;
+    if (threads == 0) threads = 32;
 
-    open_matrix ("com-LiveJournal.mat");
+    open_matrix (matrix_name);
 
     uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
     int* active = (int*)malloc(n_nodes * sizeof(int));
