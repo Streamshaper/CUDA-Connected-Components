@@ -1,5 +1,5 @@
-#ifndef WARPING_H_INCLUDED
-#define WARPING_H_INCLUDED
+#ifndef WARP_AUX_H_INCLUDED
+#define WARP_AUX_H_INCLUDED
 
 #include <stdint.h>
 #include <stdio.h>

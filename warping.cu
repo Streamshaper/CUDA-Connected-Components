@@ -4,7 +4,7 @@
 #include <cuda_runtime.h>
 #include <matio.h>
 
-#include "warping.h"
+#include "warp_aux.h"
 
 // Graph data
 uint64_t n_nodes;
