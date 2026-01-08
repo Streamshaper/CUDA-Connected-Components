@@ -42,7 +42,7 @@ __global__ void label_propagation_kernel(uint64_t* labels, int* active, int* nex
         // Lane 0 performs the update
         if (lane == 0 && local_min < labels[node]) {
             labels[node] = local_min;
-            changed_flag = 1;   // No atomics
+            *changed_flag = 1;   // No atomics
 
             // Wake neighbors
             for (uint64_t k = start; k < end; k++)
