@@ -59,7 +59,7 @@ __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes)
     next_active[i] = 0;
 }
 
-void open_matrix (char* name, uint64_t* indices, uint64_t* ind_ptr, uint64_t* n_nodes)
+void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* n_nodes)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
     if (!matfp) { fprintf(stderr,"Cannot open file\n"); exit(2); }
@@ -73,14 +73,14 @@ void open_matrix (char* name, uint64_t* indices, uint64_t* ind_ptr, uint64_t* n_
     mat_sparse_t *A = (mat_sparse_t*)Avar->data; // Correct way to access sparse data
     size_t n = Avar->dims[1], nnz = A->nzmax;
 
-    indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));
-    ind_ptr = (uint64_t*)malloc ((n+1)*sizeof(uint64_t));
+    *indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));
+    *ind_ptr = (uint64_t*)malloc ((n+1)*sizeof(uint64_t));
 
     for (size_t q=0; q<nnz; q++)
-        indices[q] = (uint64_t)A->ir[q];
+        (*indices)[q] = (uint64_t)A->ir[q];
 
     for (size_t q=0; q<=n; q++)
-        ind_ptr[q] = (uint64_t)A->jc[q];
+        (*ind_ptr)[q] = (uint64_t)A->jc[q];
         
     *n_nodes = (uint64_t)n;
 

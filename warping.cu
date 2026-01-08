@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 
     printf("Running with %d threads (%d warps per block)\n", threads, threads / 32);
 
-    open_matrix (matrix_name, indices, ind_ptr, &n_nodes);
+    open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes);
 
     uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
     int* active = (int*)malloc(n_nodes * sizeof(int));

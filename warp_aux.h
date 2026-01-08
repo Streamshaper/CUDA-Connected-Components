@@ -22,6 +22,6 @@ __global__ void label_propagation_kernel(uint64_t* labels, int* active, int* nex
 
 __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes);
 
-void open_matrix (char* name, uint64_t* indices, uint64_t* ind_ptr, uint64_t* n_nodes);
+void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* n_nodes);
 
 #endif
