@@ -50,9 +50,6 @@ int main(int argc, char* argv[]) {
     int *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
 
-    cudaMemGetInfo(&free_m, &total);
-    printf("GPU free: %.2f MB\n", free_m / 1e6);
-
     cudaMalloc(&d_labels, n_nodes * sizeof(uint64_t));
     cudaMalloc(&d_active, n_nodes * sizeof(int));
     cudaMalloc(&d_next_active, n_nodes * sizeof(int));
@@ -65,6 +62,9 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(d_next_active, next_active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint64_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
+
+    cudaMemGetInfo(&free_m, &total);
+    printf("GPU memory used: %.2f/%.2f MB\n", free_m/1e6, total);
 
     // --- Launch parameters ---
     cudaDeviceProp prop;
@@ -82,9 +82,6 @@ int main(int argc, char* argv[]) {
         iteration++;
         h_changed_flag = 0;
         cudaMemcpy(d_changed_flag, &h_changed_flag, sizeof(int), cudaMemcpyHostToDevice);
-        
-        cudaMemGetInfo(&free_m, &total);
-        printf("GPU free: %.2f MB\n", free_m / 1e6);
 
         label_propagation_kernel<<<blocks, threads>>> (d_labels, d_active, 
             d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag);
@@ -92,9 +89,6 @@ int main(int argc, char* argv[]) {
         CUDA_CHECK ();
         cudaDeviceSynchronize();
         CUDA_CHECK ();
-
-        cudaMemGetInfo(&free_m, &total);
-        printf("GPU free: %.2f MB\n", free_m / 1e6);
 
         cudaMemcpy(&h_changed_flag, d_changed_flag, sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -131,9 +125,6 @@ int main(int argc, char* argv[]) {
     float ms = 0.0f;
     cudaEventElapsedTime(&ms, start, stop);
     printf("GPU kernel time: %.3f ms\n", ms);
-
-    cudaMemGetInfo(&free_m, &total);
-    printf("GPU free: %.2f MB\n", free_m / 1e6);
 
     // --- Cleanup ---
     cudaFree(d_labels);
