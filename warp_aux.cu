@@ -6,7 +6,7 @@
 #include <cuda_runtime.h>
 #include <matio.h>
 
-
+//============================= CUDA KERNELS ============================= //
 
 __global__ void label_propagation_kernel(uint64_t* labels, int* active, int* next_active, 
                                         const uint64_t* indices, const uint64_t* ind_ptr, 
@@ -42,11 +42,11 @@ __global__ void label_propagation_kernel(uint64_t* labels, int* active, int* nex
         // Lane 0 performs the update
         if (lane == 0 && local_min < labels[node]) {
             labels[node] = local_min;
-            atomicExch(changed_flag, 1);
+            changed_flag = 1;   // No atomics
 
             // Wake neighbors
             for (uint64_t k = start; k < end; k++)
-                atomicExch(&next_active[indices[k]], 1);
+                next_active[indices[k]] = 1;    // No atomics
         }
     }
 
@@ -59,6 +59,9 @@ __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes)
     next_active[i] = 0;
 }
 
+
+//============================== AUXILIARY ============================== //
+
 void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* n_nodes)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
@@ -70,7 +73,7 @@ void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* 
     matvar_t *Avar = Mat_VarGetStructFieldByName(problem, "A", 0);
     if (!Avar || Avar->class_type != MAT_C_SPARSE) { fprintf(stderr,"A is not sparse\n"); exit(2); }
 
-    mat_sparse_t *A = (mat_sparse_t*)Avar->data; // Correct way to access sparse data
+    mat_sparse_t *A = (mat_sparse_t*)Avar->data;
     size_t n = Avar->dims[1], nnz = A->nzmax;
 
     *indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));

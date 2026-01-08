@@ -29,13 +29,14 @@ int main(int argc, char* argv[]) {
     if (threads == 0) threads = 32;
 
 
-    printf("Running with %d threads (%d warps per block)\n", threads, threads / 32);
+    printf("Running with %d threads (%d warps) per block\n", threads, threads / 32);
 
     open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes);
 
     uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
     int* active = (int*)malloc(n_nodes * sizeof(int));
     int* next_active = (int*)malloc(n_nodes * sizeof(int));
+
     for (uint64_t i = 0; i < n_nodes; i++) {
         labels[i] = i;  // initial label
         active[i] = 1;
@@ -115,7 +116,7 @@ int main(int argc, char* argv[]) {
             components++;
         }
     }
-    printf("Connected Components: %lu\n", components);
+    printf("Connected Components: %lu, found in %lu iterations\n", components, iteration);
     float ms = 0.0f;
     cudaEventElapsedTime(&ms, start, stop);
     printf("GPU kernel time: %.3f ms\n", ms);
