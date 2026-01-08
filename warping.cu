@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
     cudaMemGetInfo(&free_m, &total);
-    printf("GPU memory used: %.2f/%.2f MB\n", free_m/1e6, total);
+    printf("GPU memory used: %.2f/%.2f MB\n", free_m/1e6, total/1e6);
 
     // --- Launch parameters ---
     cudaDeviceProp prop;
