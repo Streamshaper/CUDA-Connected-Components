@@ -33,7 +33,9 @@ int main(int argc, char* argv[]) {
 
     printf("Running with %d threads (%d warps) per block\n", threads, threads / 32);
 
-    open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes);
+    mat_t    *matfp   = NULL;
+    matvar_t *problem = NULL;
+    open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, matfp, problem);
 
     // --- Device arrays ---
     uint64_t *d_labels, *d_indices, *d_ind_ptr;
@@ -51,8 +53,8 @@ int main(int argc, char* argv[]) {
 
     cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint64_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    free(indices);
-    free(ind_ptr);
+    Mat_VarFree(problem);
+    Mat_Close(matfp);
 
     initialize_kernel <<<re_set_blocks, threads>>> (d_labels, d_active, d_next_active, n_nodes);
     cudaMemGetInfo(&free_m, &total);

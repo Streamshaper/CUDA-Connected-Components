@@ -71,7 +71,8 @@ __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes)
 
 //============================== AUXILIARY ============================== //
 
-void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* n_nodes)
+void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* n_nodes,
+                mat_t** matfp_out, matvar_t** problem_out)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
     if (!matfp) { fprintf(stderr,"Cannot open file\n"); exit(2); }
@@ -86,18 +87,11 @@ void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* 
     size_t n = Avar->dims[1], nnz = A->nzmax;
 
     printf ("Opened file successfully!\n");
-    *indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));
-    *ind_ptr = (uint64_t*)malloc ((n+1)*sizeof(uint64_t));
-
-    for (size_t q=0; q<nnz; q++)
-        (*indices)[q] = (uint64_t)A->ir[q];
-
-    for (size_t q=0; q<=n; q++)
-        (*ind_ptr)[q] = (uint64_t)A->jc[q];
-        
+    *indices = (uint64_t*)A->ir;
+    *ind_ptr = (uint64_t*)A->jc;
     *n_nodes = (uint64_t)n;
 
-    Mat_VarFree(problem);
-    Mat_Close(matfp);
+    *matfp_out = matfp;
+    *problem_out = problem;
     printf ("The graph has %lu nodes and %lu edges in total.\n", *n_nodes, (uint64_t)nnz/2);
 }
