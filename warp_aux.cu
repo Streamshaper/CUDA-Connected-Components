@@ -85,6 +85,7 @@ void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* 
     mat_sparse_t *A = (mat_sparse_t*)Avar->data;
     size_t n = Avar->dims[1], nnz = A->nzmax;
 
+    printf ("Opened file successfully!\n");
     *indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));
     *ind_ptr = (uint64_t*)malloc ((n+1)*sizeof(uint64_t));
 
