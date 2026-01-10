@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
 
     mat_t    *matfp   = NULL;
     matvar_t *problem = NULL;
-    open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, matfp, problem);
+    open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, &matfp, &problem);
 
     // --- Device arrays ---
     uint64_t *d_labels, *d_indices, *d_ind_ptr;
