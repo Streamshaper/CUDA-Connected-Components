@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
     free(indices);
     free(ind_ptr);
 
-    initialize_kernel <<re_set_blocks, threads>> (d_labels, d_active, d_next_active, n_nodes);
+    initialize_kernel <<<re_set_blocks, threads>>> (d_labels, d_active, d_next_active, n_nodes);
     cudaMemGetInfo(&free_m, &total);
     printf("GPU memory used: %.2f/%.2f MB\n", (total/1e6)-(free_m/1e6), total/1e6);
 
