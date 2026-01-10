@@ -17,15 +17,15 @@ do { \
     } \
 } while (0)
 
-__global__ void label_propagation_kernel(int* labels, int* active, int* next_active, 
-                                        const int* indices, const int* ind_ptr, 
-                                        int n_nodes, int* changed_flag);
+__global__ void label_propagation_kernel(uint32_t* labels, int* active, int* next_active, 
+                                        const uint32_t* indices, const uint32_t* ind_ptr, 
+                                        uint32_t n_nodes, int* changed_flag);
 
-__global__ void initialize_kernel (int* labels, int* active, int *next_active, int n_nodes);
+__global__ void initialize_kernel (uint32_t* labels, int* active, int *next_active, uint32_t n_nodes);
 
-__global__ void reset_active_kernel(int* next_active, int n_nodes);
+__global__ void reset_active_kernel(int* next_active, uint32_t n_nodes);
 
-void open_matrix (char* name, int** indices, int** ind_ptr, int* n_nodes,
+void open_matrix (char* name, uint32_t** indices, uint32_t** ind_ptr, uint32_t* n_nodes,
                 mat_t** matfp_out, matvar_t** problem_out);
 
 #endif
