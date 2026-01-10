@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <matio.h>
 #include <cuda_runtime.h>
 
 #define CUDA_CHECK() \
