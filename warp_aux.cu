@@ -8,9 +8,9 @@
 
 //============================= CUDA KERNELS ============================= //
 
-__global__ void label_propagation_kernel(uint64_t* labels, int* active, int* next_active, 
-                                        const uint64_t* indices, const uint64_t* ind_ptr, 
-                                        uint64_t n_nodes, int* changed_flag)
+__global__ void label_propagation_kernel(int* labels, int* active, int* next_active, 
+                                        const int* indices, const int* ind_ptr, 
+                                        int n_nodes, int* changed_flag)
 {
     int warps_per_block = blockDim.x >> 5;
     int warp_in_block = threadIdx.x >> 5;
@@ -20,17 +20,17 @@ __global__ void label_propagation_kernel(uint64_t* labels, int* active, int* nex
 
     if (warp_id >= total_warps) return;
 
-    for (uint64_t node = warp_id; node < n_nodes; node += total_warps) {
+    for (int node = warp_id; node < n_nodes; node += total_warps) {
         if (!active[node]) continue;
-        uint64_t start = ind_ptr[node];
-        uint64_t end   = ind_ptr[node + 1];
+        int start = ind_ptr[node];
+        int end   = ind_ptr[node + 1];
         if (start == end) continue;
 
-        uint64_t local_min = UINT64_MAX;
+        int local_min = INT_MAX;
 
         // Parallel neighbor traversal
-        for (uint64_t k = start + lane; k < end; k += 32) {
-            uint64_t nbr = indices[k];
+        for (int k = start + lane; k < end; k += 32) {
+            int nbr = indices[k];
             local_min = min(local_min, labels[nbr]);
         }
 
@@ -45,25 +45,25 @@ __global__ void label_propagation_kernel(uint64_t* labels, int* active, int* nex
             *changed_flag = 1;   // No atomics
 
             // Wake neighbors
-            for (uint64_t k = start; k < end; k++)
+            for (int k = start; k < end; k++)
                 next_active[indices[k]] = 1;    // No atomics
         }
     }
 
 }
 
-__global__ void initialize_kernel (uint64_t* labels, int* active, int *next_active, uint64_t n_nodes)
+__global__ void initialize_kernel (int* labels, int* active, int *next_active, int n_nodes)
 {
-    uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
     labels[i] = i;  // initial label
     active[i] = 1;
     next_active[i] = 0;
 }
 
-__global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) 
+__global__ void reset_active_kernel(int* next_active, int n_nodes) 
 {
-    uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
     next_active[i] = 0;
 }
@@ -71,7 +71,7 @@ __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes)
 
 //============================== AUXILIARY ============================== //
 
-void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* n_nodes,
+void open_matrix (char* name, int** indices, int** ind_ptr, int* n_nodes,
                 mat_t** matfp_out, matvar_t** problem_out)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
@@ -87,9 +87,9 @@ void open_matrix (char* name, uint64_t** indices, uint64_t** ind_ptr, uint64_t* 
     size_t n = Avar->dims[1], nnz = A->nzmax;
 
     printf ("Opened file successfully!\n");
-    *indices = (uint64_t*)A->ir;
-    *ind_ptr = (uint64_t*)A->jc;
-    *n_nodes = (uint64_t)n;
+    *indices = A->ir;
+    *ind_ptr = A->jc;
+    *n_nodes = n;
 
     *matfp_out = matfp;
     *problem_out = problem;

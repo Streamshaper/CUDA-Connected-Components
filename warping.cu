@@ -7,9 +7,9 @@
 #include "warp_aux.h"
 
 // Graph data
-uint64_t n_nodes;
-uint64_t* indices;
-uint64_t* ind_ptr;
+int n_nodes;
+int* indices;
+int* ind_ptr;
 char* matrix_name;
 
 size_t free_m, total;
@@ -38,21 +38,21 @@ int main(int argc, char* argv[]) {
     open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, &matfp, &problem);
 
     // --- Device arrays ---
-    uint64_t *d_labels, *d_indices, *d_ind_ptr;
+    int *d_labels, *d_indices, *d_ind_ptr;
     int *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
 
     int re_set_blocks = (n_nodes + threads - 1) / threads;
 
-    cudaMalloc(&d_labels, n_nodes * sizeof(uint64_t));
+    cudaMalloc(&d_labels, n_nodes * sizeof(int));
     cudaMalloc(&d_active, n_nodes * sizeof(int));
     cudaMalloc(&d_next_active, n_nodes * sizeof(int));
-    cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(uint64_t));
-    cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint64_t));
+    cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(int));
+    cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(int));
     cudaMalloc(&d_changed_flag, sizeof(int));
 
-    cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(int), cudaMemcpyHostToDevice);
     Mat_VarFree(problem);
     Mat_Close(matfp);
 
@@ -101,15 +101,15 @@ int main(int argc, char* argv[]) {
     } while (h_changed_flag);
 
     // --- Copy labels back to host ---
-    uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
-    cudaMemcpy(labels, d_labels, n_nodes * sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    int* labels = (int*)malloc(n_nodes * sizeof(int));
+    cudaMemcpy(labels, d_labels, n_nodes * sizeof(int), cudaMemcpyDeviceToHost);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
     // --- Count unique labels (serial) ---
     uint8_t* found = (uint8_t*)calloc(n_nodes, sizeof(uint8_t));
-    uint64_t components = 0;
-    for (uint64_t i = 0; i < n_nodes; i++) {
+    int components = 0;
+    for (int i = 0; i < n_nodes; i++) {
         if (!found[labels[i]]) {
             found[labels[i]] = 1;
             components++;
