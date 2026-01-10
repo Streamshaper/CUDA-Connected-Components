@@ -52,6 +52,15 @@ __global__ void label_propagation_kernel(uint64_t* labels, int* active, int* nex
 
 }
 
+__global__ void initialize_kernel (uint64_t* labels, int* active, int *next_active, uint64_t n_nodes)
+{
+    uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n_nodes) return;
+    labels[i] = i;  // initial label
+    active[i] = 1;
+    next_active[i] = 0;
+}
+
 __global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) 
 {
     uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;

@@ -35,20 +35,12 @@ int main(int argc, char* argv[]) {
 
     open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes);
 
-    uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
-    int* active = (int*)malloc(n_nodes * sizeof(int));
-    int* next_active = (int*)malloc(n_nodes * sizeof(int));
-
-    for (uint64_t i = 0; i < n_nodes; i++) {
-        labels[i] = i;  // initial label
-        active[i] = 1;
-        next_active[i] = 0;
-    }
-
     // --- Device arrays ---
     uint64_t *d_labels, *d_indices, *d_ind_ptr;
     int *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
+
+    int re_set_blocks = (n_nodes + threads - 1) / threads;
 
     cudaMalloc(&d_labels, n_nodes * sizeof(uint64_t));
     cudaMalloc(&d_active, n_nodes * sizeof(int));
@@ -57,12 +49,12 @@ int main(int argc, char* argv[]) {
     cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint64_t));
     cudaMalloc(&d_changed_flag, sizeof(int));
 
-    cudaMemcpy(d_labels, labels, n_nodes * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_active, active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_next_active, next_active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint64_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    free(indices);
+    free(ind_ptr);
 
+    initialize_kernel <<re_set_blocks, threads>> (d_labels, d_active, d_next_active, n_nodes);
     cudaMemGetInfo(&free_m, &total);
     printf("GPU memory used: %.2f/%.2f MB\n", (total/1e6)-(free_m/1e6), total/1e6);
 
@@ -98,8 +90,7 @@ int main(int argc, char* argv[]) {
         d_next_active = temp;
 
         // Reset next_active
-        int reset_blocks = (n_nodes + threads - 1) / threads;
-        reset_active_kernel<<<reset_blocks, threads>>>(d_next_active, n_nodes);
+        reset_active_kernel<<<re_set_blocks, threads>>>(d_next_active, n_nodes);
 
         CUDA_CHECK ();
         cudaDeviceSynchronize();
@@ -108,6 +99,7 @@ int main(int argc, char* argv[]) {
     } while (h_changed_flag);
 
     // --- Copy labels back to host ---
+    uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
     cudaMemcpy(labels, d_labels, n_nodes * sizeof(uint64_t), cudaMemcpyDeviceToHost);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -138,12 +130,7 @@ int main(int argc, char* argv[]) {
     cudaEventDestroy(stop);
 
     free(labels);
-    free(active);
-    free(next_active);
     free(found);
-    free(indices);
-    free(ind_ptr);
-
 
     return 0;
 }
