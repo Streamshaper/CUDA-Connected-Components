@@ -8,7 +8,7 @@
 
 //============================= CUDA KERNELS ============================= //
 
-__global__ void label_propagation_kernel(uint32_t* labels, int* active, int* next_active,
+__global__ void label_propagation_kernel(uint32_t* labels, uint8_t* active, uint8_t* next_active,
                                         const uint32_t* indices, const uint32_t* ind_ptr,
                                         uint32_t n_nodes, int* changed_flag)
 {
