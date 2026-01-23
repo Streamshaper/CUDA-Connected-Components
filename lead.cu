@@ -62,7 +62,7 @@ __global__ void label_propagation_kernel(
 
         // Mark neighbors as active for next iteration
         for (uint32_t k = start; k < end; k++) {
-            atomicExch(&next_active[indices[k]], 1);
+            next_active[indices[k]] = 1;
         }
     }
 }
