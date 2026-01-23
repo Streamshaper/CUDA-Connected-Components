@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
 
     // Device arrays
     uint32_t *d_labels, *d_indices, *d_ind_ptr;
-    int *d_active, *d_next_active;
+    uint8_t *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
 
     int re_set_blocks = (n_nodes + threads - 1) / threads;
