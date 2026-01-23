@@ -22,6 +22,16 @@ uint32_t* ind_ptr;
 char* matrix_name;
 
 // ----------------------- CUDA Kernels -----------------------
+
+__global__ void initialize_kernel (uint32_t* labels, int* active, int *next_active, uint32_t n_nodes)
+{
+    uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n_nodes) return;
+    labels[i] = i;  // initial label
+    active[i] = 1;
+    next_active[i] = 0;
+}
+
 __global__ void label_propagation_kernel(
     uint32_t* labels,
     int* active,
@@ -63,7 +73,7 @@ __global__ void reset_active_kernel(int* next_active, uint32_t n_nodes) {
     next_active[i] = 0;
 }
 
-// AUX
+// Auxiliary Function
 void open_matrix (char* name, uint32_t** indices, uint32_t** ind_ptr, uint32_t* n_nodes,
                 mat_t** matfp_out, matvar_t** problem_out)
 {
@@ -86,8 +96,9 @@ void open_matrix (char* name, uint32_t** indices, uint32_t** ind_ptr, uint32_t* 
 
     *matfp_out = matfp;
     *problem_out = problem;
-    printf ("The graph has %u nodes and %lu edges in total.\n", *n_nodes, (uint64_t)nnz/2);
+    printf ("The graph has %u nodes and %u edges in total.\n", *n_nodes, (uint64_t)nnz/2);
 }
+
 // ----------------------- Main Function -----------------------
 int main(int argc, char *argv[]) {
 
@@ -109,18 +120,13 @@ int main(int argc, char *argv[]) {
     open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, &matfp, &problem);
 
     uint32_t* labels = (uint32_t*)malloc(n_nodes * sizeof(uint32_t));
-    int* active = (int*)malloc(n_nodes * sizeof(int));
-    int* next_active = (int*)malloc(n_nodes * sizeof(int));
-    for (uint32_t i = 0; i < n_nodes; i++) {
-        labels[i] = i;  // initial label
-        active[i] = 1;
-        next_active[i] = 0;
-    }
 
-    // --- Device arrays ---
+    // Device arrays
     uint32_t *d_labels, *d_indices, *d_ind_ptr;
     int *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
+
+    int re_set_blocks = (n_nodes + threads - 1) / threads;
 
     cudaMalloc(&d_labels, n_nodes * sizeof(uint32_t));
     cudaMalloc(&d_active, n_nodes * sizeof(int));
@@ -129,24 +135,23 @@ int main(int argc, char *argv[]) {
     cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint32_t));
     cudaMalloc(&d_changed_flag, sizeof(int));
 
-    cudaMemcpy(d_labels, labels, n_nodes * sizeof(uint32_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_active, active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_next_active, next_active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint32_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    Mat_VarFree(problem);
+    Mat_Close(matfp);
 
-    // --- Launch parameters ---
+    initialize_kernel <<<re_set_blocks, threads>>> (d_labels, d_active, d_next_active, n_nodes);
+
     int blocks = (n_nodes + threads - 1) / threads;
-
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    // --- Iterative label propagation ---
+    // Iterative label propagation
     cudaEventRecord(start); 
     int iteration = 0;
-    do {
+    do {    // Iterative label propagation
         iteration++;
         h_changed_flag = 0;
         cudaMemcpy(d_changed_flag, &h_changed_flag, sizeof(int), cudaMemcpyHostToDevice);
@@ -167,7 +172,7 @@ int main(int argc, char *argv[]) {
         d_next_active = temp;
 
         // Reset next_active
-        reset_active_kernel<<<blocks, threads>>>(d_next_active, n_nodes);
+        reset_active_kernel<<<re_set_blocks, threads>>>(d_next_active, n_nodes);
 
         CUDA_CHECK ();
         cudaDeviceSynchronize();
@@ -175,12 +180,13 @@ int main(int argc, char *argv[]) {
 
     } while (h_changed_flag);
 
-    // --- Copy labels back to host ---
+    // Copy labels back to host
+    uint32_t* labels = (uint32_t*)malloc(n_nodes * sizeof(uint32_t));
     cudaMemcpy(labels, d_labels, n_nodes * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
-    // --- Count unique labels (serial) ---
+    // Count unique labels (serial)
     uint8_t* found = (uint8_t*)calloc(n_nodes, sizeof(uint8_t));
     uint32_t components = 0;
     for (uint32_t i = 0; i < n_nodes; i++) {
@@ -189,12 +195,12 @@ int main(int argc, char *argv[]) {
             components++;
         }
     }
-    printf("Connected Components: %lu\n", components);
+    printf("Connected Components: %u\n", components);
     float ms = 0.0f;
     cudaEventElapsedTime(&ms, start, stop);
     printf("GPU kernel time: %.3f ms\n", ms);
 
-    // --- Cleanup ---
+    // Cleanup
     cudaFree(d_labels);
     cudaFree(d_active);
     cudaFree(d_next_active);
