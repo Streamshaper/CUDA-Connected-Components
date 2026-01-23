@@ -27,8 +27,8 @@ int main(int argc, char* argv[]) {
     int threads = 256;
     if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)
     	threads = atoi(argv[2]);
-    threads = (threads / 32) * 32;
-    if (threads == 0) threads = 32;
+    threads = (threads / 4) * 4;
+    if (threads == 0) threads = 4;
 
 
     printf("Running with %d threads (%d warps) per block\n", threads, threads / 32);
