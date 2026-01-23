@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
             components++;
         }
     }
-    printf("Connected Components: %lu, found in %d iterations\n", components, iteration);
+    printf("Connected Components: %u, found in %d iterations\n", components, iteration);
     float ms = 0.0f;
     cudaEventElapsedTime(&ms, start, stop);
     printf("GPU kernel time: %.3f ms\n", ms);

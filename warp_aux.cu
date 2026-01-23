@@ -26,7 +26,7 @@ __global__ void label_propagation_kernel(uint32_t* labels, int* active, int* nex
         uint32_t end   = ind_ptr[node + 1];
         if (start == end) continue;
 
-        uint32_t local_min = UINT64_MAX;
+        uint32_t local_min = UINT32_MAX;
 
         // Parallel neighbor traversal
         for (uint32_t k = start + lane; k < end; k += 32) {
@@ -93,5 +93,5 @@ void open_matrix (char* name, uint32_t** indices, uint32_t** ind_ptr, uint32_t* 
 
     *matfp_out = matfp;
     *problem_out = problem;
-    printf ("The graph has %lu nodes and %lu edges in total.\n", *n_nodes, (uint64_t)nnz/2);
+    printf ("The graph has %u nodes and %lu edges in total.\n", *n_nodes, (uint64_t)nnz/2);
 }
