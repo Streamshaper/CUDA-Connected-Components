@@ -96,7 +96,7 @@ void open_matrix (char* name, uint32_t** indices, uint32_t** ind_ptr, uint32_t* 
 
     *matfp_out = matfp;
     *problem_out = problem;
-    printf ("The graph has %u nodes and %u edges in total.\n", *n_nodes, (uint64_t)nnz/2);
+    printf ("The graph has %u nodes and %u edges in total.\n", *n_nodes, (uint32_t)nnz/2);
 }
 
 // ----------------------- Main Function -----------------------
@@ -146,9 +146,9 @@ int main(int argc, char *argv[]) {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    // Iterative label propagation
     cudaEventRecord(start); 
     int iteration = 0;
+    
     do {    // Iterative label propagation
         iteration++;
         h_changed_flag = 0;

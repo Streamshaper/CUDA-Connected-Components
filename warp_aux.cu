@@ -8,8 +8,8 @@
 
 //============================= CUDA KERNELS ============================= //
 
-__global__ void label_propagation_kernel(uint32_t* labels, int* active, int* next_active, 
-                                        const uint32_t* indices, const uint32_t* ind_ptr, 
+__global__ void label_propagation_kernel(uint32_t* labels, int* active, int* next_active,
+                                        const uint32_t* indices, const uint32_t* ind_ptr,
                                         uint32_t n_nodes, int* changed_flag)
 {
     int warps_per_block = blockDim.x >> 5;
@@ -52,7 +52,7 @@ __global__ void label_propagation_kernel(uint32_t* labels, int* active, int* nex
 
 }
 
-__global__ void initialize_kernel (uint32_t* labels, int* active, int *next_active, uint32_t n_nodes)
+__global__ void initialize_kernel (uint32_t* labels, uint8_t* active, uint8_t *next_active, uint32_t n_nodes)
 {
     uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
@@ -61,7 +61,7 @@ __global__ void initialize_kernel (uint32_t* labels, int* active, int *next_acti
     next_active[i] = 0;
 }
 
-__global__ void reset_active_kernel(int* next_active, uint32_t n_nodes) 
+__global__ void reset_active_kernel(uint8_t* next_active, uint32_t n_nodes)
 {
     uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;

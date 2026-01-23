@@ -23,9 +23,9 @@ int main(int argc, char* argv[]) {
         printf ("Missing argument: matrix_name\n");
         exit (0);
     }
-    
+
     int threads = 256;
-    if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)	 
+    if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)
     	threads = atoi(argv[2]);
     threads = (threads / 32) * 32;
     if (threads == 0) threads = 32;
@@ -39,14 +39,14 @@ int main(int argc, char* argv[]) {
 
     // --- Device arrays ---
     uint32_t *d_labels, *d_indices, *d_ind_ptr;
-    int *d_active, *d_next_active;
+    uint8_t *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
 
     int re_set_blocks = (n_nodes + threads - 1) / threads;
 
     cudaMalloc(&d_labels, n_nodes * sizeof(uint32_t));
-    cudaMalloc(&d_active, n_nodes * sizeof(int));
-    cudaMalloc(&d_next_active, n_nodes * sizeof(int));
+    cudaMalloc(&d_active, n_nodes * sizeof(uint8_t));
+    cudaMalloc(&d_next_active, n_nodes * sizeof(uint8_t));
     cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(uint32_t));
     cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint32_t));
     cudaMalloc(&d_changed_flag, sizeof(int));
@@ -70,14 +70,14 @@ int main(int argc, char* argv[]) {
     cudaEventCreate(&stop);
 
     // --- Iterative label propagation ---
-    cudaEventRecord(start); 
+    cudaEventRecord(start);
     int iteration = 0;
     do {
         iteration++;
         h_changed_flag = 0;
         cudaMemcpy(d_changed_flag, &h_changed_flag, sizeof(int), cudaMemcpyHostToDevice);
 
-        label_propagation_kernel<<<blocks, threads>>> (d_labels, d_active, 
+        label_propagation_kernel<<<blocks, threads>>> (d_labels, d_active,
             d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag);
 
         CUDA_CHECK ();
@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
         cudaMemcpy(&h_changed_flag, d_changed_flag, sizeof(int), cudaMemcpyDeviceToHost);
 
         // Swap active arrays
-        int* temp = d_active;
+        uint8_t* temp = d_active;
         d_active = d_next_active;
         d_next_active = temp;
 
