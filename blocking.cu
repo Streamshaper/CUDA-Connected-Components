@@ -61,6 +61,7 @@ int main(int argc, char* argv[]) {
     printf("GPU memory used: %.2f/%.2f MB\n", (total/1e6)-(free_m/1e6), total/1e6);
 
     int blocks = n_nodes;
+    size_t shmem_bytes = threads * sizeof(uint32_t);
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -74,7 +75,7 @@ int main(int argc, char* argv[]) {
         h_changed_flag = 0;
         cudaMemcpy(d_changed_flag, &h_changed_flag, sizeof(int), cudaMemcpyHostToDevice);
 
-        label_propagation_block_kernel<<<blocks, threads>>> (d_labels, d_active,
+        label_propagation_block_kernel<<<blocks, threads, shmem_bytes>>> (d_labels, d_active,
             d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag);
 
         CUDA_CHECK ();
