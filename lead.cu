@@ -23,7 +23,7 @@ char* matrix_name;
 
 // ----------------------- CUDA Kernels -----------------------
 
-__global__ void initialize_kernel (uint32_t* labels, int* active, int *next_active, uint32_t n_nodes)
+__global__ void initialize_kernel (uint32_t* labels, uint8_t* active, uint8_t *next_active, uint32_t n_nodes)
 {
     uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
@@ -34,8 +34,8 @@ __global__ void initialize_kernel (uint32_t* labels, int* active, int *next_acti
 
 __global__ void label_propagation_kernel(
     uint32_t* labels,
-    int* active,
-    int* next_active,
+    uint8_t* active,
+    uint8_t* next_active,
     uint32_t* indices,
     uint32_t* ind_ptr,
     uint32_t n_nodes,
@@ -67,7 +67,7 @@ __global__ void label_propagation_kernel(
     }
 }
 
-__global__ void reset_active_kernel(int* next_active, uint32_t n_nodes) {
+__global__ void reset_active_kernel(uint8_t* next_active, uint32_t n_nodes) {
     uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
     next_active[i] = 0;
@@ -108,9 +108,9 @@ int main(int argc, char *argv[]) {
         printf ("Missing argument: matrix_name\n");
         exit (0);
     }
-    
+
     int threads = 256;
-    if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)	 
+    if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)
     	threads = atoi(argv[2]);
     threads = (threads / 32) * 32;
     if (threads == 0) threads = 32;
@@ -127,8 +127,8 @@ int main(int argc, char *argv[]) {
     int re_set_blocks = (n_nodes + threads - 1) / threads;
 
     cudaMalloc(&d_labels, n_nodes * sizeof(uint32_t));
-    cudaMalloc(&d_active, n_nodes * sizeof(int));
-    cudaMalloc(&d_next_active, n_nodes * sizeof(int));
+    cudaMalloc(&d_active, n_nodes * sizeof(uint8_t));
+    cudaMalloc(&d_next_active, n_nodes * sizeof(uint8_t));
     cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(uint32_t));
     cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint32_t));
     cudaMalloc(&d_changed_flag, sizeof(int));
@@ -146,9 +146,9 @@ int main(int argc, char *argv[]) {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    cudaEventRecord(start); 
+    cudaEventRecord(start);
     int iteration = 0;
-    
+
     do {    // Iterative label propagation
         iteration++;
         h_changed_flag = 0;
@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
         cudaMemcpy(&h_changed_flag, d_changed_flag, sizeof(int), cudaMemcpyDeviceToHost);
 
         // Swap active arrays
-        int* temp = d_active;
+        uint8_t* temp = d_active;
         d_active = d_next_active;
         d_next_active = temp;
 
