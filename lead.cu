@@ -16,32 +16,32 @@ do { \
 
 
 // Graph data
-uint64_t n_nodes;
-uint64_t* indices;
-uint64_t* ind_ptr;
+uint32_t n_nodes;
+uint32_t* indices;
+uint32_t* ind_ptr;
 char* matrix_name;
 
 // ----------------------- CUDA Kernels -----------------------
 __global__ void label_propagation_kernel(
-    uint64_t* labels,
+    uint32_t* labels,
     int* active,
     int* next_active,
-    uint64_t* indices,
-    uint64_t* ind_ptr,
-    uint64_t n_nodes,
+    uint32_t* indices,
+    uint32_t* ind_ptr,
+    uint32_t n_nodes,
     int* changed_flag)
 {
-    uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
     if (!active[i]) return;
 
-    uint64_t start = ind_ptr[i];
-    uint64_t end   = ind_ptr[i + 1];
+    uint32_t start = ind_ptr[i];
+    uint32_t end   = ind_ptr[i + 1];
     if (start == end) return;
 
-    uint64_t min_label = labels[i];
-    for (uint64_t k = start; k < end; k++) {
-        uint64_t neighbor = indices[k];
+    uint32_t min_label = labels[i];
+    for (uint32_t k = start; k < end; k++) {
+        uint32_t neighbor = indices[k];
         if (labels[neighbor] < min_label)
             min_label = labels[neighbor];
     }
@@ -51,20 +51,21 @@ __global__ void label_propagation_kernel(
         atomicExch(changed_flag, 1);  // signal host that a change occurred
 
         // Mark neighbors as active for next iteration
-        for (uint64_t k = start; k < end; k++) {
+        for (uint32_t k = start; k < end; k++) {
             atomicExch(&next_active[indices[k]], 1);
         }
     }
 }
 
-__global__ void reset_active_kernel(int* next_active, uint64_t n_nodes) {
-    uint64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void reset_active_kernel(int* next_active, uint32_t n_nodes) {
+    uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_nodes) return;
     next_active[i] = 0;
 }
 
 // AUX
-void open_matrix (char* name)
+void open_matrix (char* name, uint32_t** indices, uint32_t** ind_ptr, uint32_t* n_nodes,
+                mat_t** matfp_out, matvar_t** problem_out)
 {
     mat_t *matfp = Mat_Open(name, MAT_ACC_RDONLY);
     if (!matfp) { fprintf(stderr,"Cannot open file\n"); exit(2); }
@@ -75,26 +76,18 @@ void open_matrix (char* name)
     matvar_t *Avar = Mat_VarGetStructFieldByName(problem, "A", 0);
     if (!Avar || Avar->class_type != MAT_C_SPARSE) { fprintf(stderr,"A is not sparse\n"); exit(2); }
 
-    mat_sparse_t *A = (mat_sparse_t*)Avar->data; // Correct way to access sparse data
+    mat_sparse_t *A = (mat_sparse_t*)Avar->data;
     size_t n = Avar->dims[1], nnz = A->nzmax;
 
-    indices = (uint64_t*)malloc (nnz*sizeof(uint64_t));
-    ind_ptr = (uint64_t*)malloc ((n+1)*sizeof(uint64_t));
+    printf ("Opened file successfully!\n");
+    *indices = (uint32_t*)A->ir;
+    *ind_ptr = (uint32_t*)A->jc;
+    *n_nodes = (uint32_t)n;
 
-    for (size_t q=0; q<nnz; q++)
-        indices[q] = (uint64_t)A->ir[q];
-
-    for (size_t q=0; q<=n; q++)
-        ind_ptr[q] = (uint64_t)A->jc[q];
-        
-    n_nodes = (uint64_t)n;
-
-    Mat_VarFree(problem);
-    Mat_Close(matfp);
-        printf ("The graph has %lu nodes and %lu edges in total.\n", n_nodes, (uint64_t)nnz/2);
-
+    *matfp_out = matfp;
+    *problem_out = problem;
+    printf ("The graph has %u nodes and %lu edges in total.\n", *n_nodes, (uint64_t)nnz/2);
 }
-
 // ----------------------- Main Function -----------------------
 int main(int argc, char *argv[]) {
 
@@ -111,34 +104,36 @@ int main(int argc, char *argv[]) {
     threads = (threads / 32) * 32;
     if (threads == 0) threads = 32;
 
-    open_matrix (matrix_name);
+    mat_t    *matfp   = NULL;
+    matvar_t *problem = NULL;
+    open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, &matfp, &problem);
 
-    uint64_t* labels = (uint64_t*)malloc(n_nodes * sizeof(uint64_t));
+    uint32_t* labels = (uint32_t*)malloc(n_nodes * sizeof(uint32_t));
     int* active = (int*)malloc(n_nodes * sizeof(int));
     int* next_active = (int*)malloc(n_nodes * sizeof(int));
-    for (uint64_t i = 0; i < n_nodes; i++) {
+    for (uint32_t i = 0; i < n_nodes; i++) {
         labels[i] = i;  // initial label
         active[i] = 1;
         next_active[i] = 0;
     }
 
     // --- Device arrays ---
-    uint64_t *d_labels, *d_indices, *d_ind_ptr;
+    uint32_t *d_labels, *d_indices, *d_ind_ptr;
     int *d_active, *d_next_active;
     int *d_changed_flag, h_changed_flag;
 
-    cudaMalloc(&d_labels, n_nodes * sizeof(uint64_t));
+    cudaMalloc(&d_labels, n_nodes * sizeof(uint32_t));
     cudaMalloc(&d_active, n_nodes * sizeof(int));
     cudaMalloc(&d_next_active, n_nodes * sizeof(int));
-    cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(uint64_t));
-    cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint64_t));
+    cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(uint32_t));
+    cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint32_t));
     cudaMalloc(&d_changed_flag, sizeof(int));
 
-    cudaMemcpy(d_labels, labels, n_nodes * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_labels, labels, n_nodes * sizeof(uint32_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_active, active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_next_active, next_active, n_nodes * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
 
     // --- Launch parameters ---
     int blocks = (n_nodes + threads - 1) / threads;
@@ -181,14 +176,14 @@ int main(int argc, char *argv[]) {
     } while (h_changed_flag);
 
     // --- Copy labels back to host ---
-    cudaMemcpy(labels, d_labels, n_nodes * sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    cudaMemcpy(labels, d_labels, n_nodes * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
     // --- Count unique labels (serial) ---
     uint8_t* found = (uint8_t*)calloc(n_nodes, sizeof(uint8_t));
-    uint64_t components = 0;
-    for (uint64_t i = 0; i < n_nodes; i++) {
+    uint32_t components = 0;
+    for (uint32_t i = 0; i < n_nodes; i++) {
         if (!found[labels[i]]) {
             found[labels[i]] = 1;
             components++;
