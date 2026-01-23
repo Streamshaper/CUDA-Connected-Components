@@ -119,8 +119,6 @@ int main(int argc, char *argv[]) {
     matvar_t *problem = NULL;
     open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, &matfp, &problem);
 
-    uint32_t* labels = (uint32_t*)malloc(n_nodes * sizeof(uint32_t));
-
     // Device arrays
     uint32_t *d_labels, *d_indices, *d_ind_ptr;
     int *d_active, *d_next_active;
@@ -212,8 +210,6 @@ int main(int argc, char *argv[]) {
     cudaEventDestroy(stop);
 
     free(labels);
-    free(active);
-    free(next_active);
     free(found);
 
     return 0;
