@@ -1,0 +1,135 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <cuda_runtime.h>
+#include <matio.h>
+
+#include "warp_aux.h"
+
+// Graph data
+uint32_t n_nodes;
+uint32_t* indices;
+uint32_t* ind_ptr;
+char* matrix_name;
+
+size_t free_m, total;
+
+
+int main(int argc, char* argv[]) {
+
+    if (argc > 1)
+        matrix_name = argv[1];
+    else{
+        printf ("Missing argument: matrix_name\n");
+        exit (0);
+    }
+
+    int threads = 256;
+    if (argc > 2 && atoi(argv[2])<8192 && atoi(argv[2])>1)
+    	threads = atoi(argv[2]);
+    threads = (threads / 32) * 32;
+    if (threads == 0) threads = 32;
+
+
+    printf("Running with %d threads (%d warps) per block\n", threads, threads / 32);
+
+    mat_t    *matfp   = NULL;
+    matvar_t *problem = NULL;
+    open_matrix (matrix_name, &indices, &ind_ptr, &n_nodes, &matfp, &problem);
+
+    // --- Device arrays ---
+    uint32_t *d_labels, *d_indices, *d_ind_ptr;
+    uint8_t *d_active, *d_next_active;
+    int *d_changed_flag, h_changed_flag;
+
+    int re_set_blocks = (n_nodes + threads - 1) / threads;
+
+    cudaMalloc(&d_labels, n_nodes * sizeof(uint32_t));
+    cudaMalloc(&d_active, n_nodes * sizeof(uint8_t));
+    cudaMalloc(&d_next_active, n_nodes * sizeof(uint8_t));
+    cudaMalloc(&d_indices, ind_ptr[n_nodes] * sizeof(uint32_t));
+    cudaMalloc(&d_ind_ptr, (n_nodes + 1) * sizeof(uint32_t));
+    cudaMalloc(&d_changed_flag, sizeof(int));
+
+    cudaMemcpy(d_indices, indices, ind_ptr[n_nodes] * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_ind_ptr, ind_ptr, (n_nodes + 1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    Mat_VarFree(problem);
+    Mat_Close(matfp);
+
+    initialize_kernel <<<re_set_blocks, threads>>> (d_labels, d_active, d_next_active, n_nodes);
+    cudaMemGetInfo(&free_m, &total);
+    printf("GPU memory used: %.2f/%.2f MB\n", (total/1e6)-(free_m/1e6), total/1e6);
+
+    int blocks = n_nodes;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    // --- Iterative label propagation ---
+    cudaEventRecord(start);
+    int iteration = 0;
+    do {
+        iteration++;
+        h_changed_flag = 0;
+        cudaMemcpy(d_changed_flag, &h_changed_flag, sizeof(int), cudaMemcpyHostToDevice);
+
+        label_propagation_block_kernel<<<blocks, threads>>> (d_labels, d_active,
+            d_next_active, d_indices, d_ind_ptr, n_nodes, d_changed_flag);
+
+        CUDA_CHECK ();
+        cudaDeviceSynchronize();
+        CUDA_CHECK ();
+
+        cudaMemcpy(&h_changed_flag, d_changed_flag, sizeof(int), cudaMemcpyDeviceToHost);
+
+        // Swap active arrays
+        uint8_t* temp = d_active;
+        d_active = d_next_active;
+        d_next_active = temp;
+
+        // Reset next_active
+        reset_active_kernel<<<re_set_blocks, threads>>>(d_next_active, n_nodes);
+
+        CUDA_CHECK ();
+        cudaDeviceSynchronize();
+        CUDA_CHECK ();
+
+    } while (h_changed_flag);
+
+    // --- Copy labels back to host ---
+    uint32_t* labels = (uint32_t*)malloc(n_nodes * sizeof(uint32_t));
+    cudaMemcpy(labels, d_labels, n_nodes * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    // --- Count unique labels (serial) ---
+    uint8_t* found = (uint8_t*)calloc(n_nodes, sizeof(uint8_t));
+    uint32_t components = 0;
+    for (uint32_t i = 0; i < n_nodes; i++) {
+        if (!found[labels[i]]) {
+            found[labels[i]] = 1;
+            components++;
+        }
+    }
+    printf("Connected Components: %u, found in %d iterations\n", components, iteration);
+    float ms = 0.0f;
+    cudaEventElapsedTime(&ms, start, stop);
+    printf("GPU kernel time: %.3f ms\n", ms);
+
+    // --- Cleanup ---
+    cudaFree(d_labels);
+    cudaFree(d_active);
+    cudaFree(d_next_active);
+    cudaFree(d_indices);
+    cudaFree(d_ind_ptr);
+    cudaFree(d_changed_flag);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
+    free(labels);
+    free(found);
+
+    return 0;
+}

@@ -52,6 +52,61 @@ __global__ void label_propagation_kernel(uint32_t* labels, uint8_t* active, uint
 
 }
 
+__global__ void label_propagation_block_kernel(
+    uint32_t* labels,
+    uint8_t* active,
+    uint8_t* next_active,
+    const uint32_t* indices,
+    const uint32_t* ind_ptr,
+    uint32_t n_nodes,
+    int* changed_flag)
+{
+    uint32_t node = blockIdx.x;
+    if (node >= n_nodes) return;
+    if (!active[node]) return;
+
+    uint32_t start = ind_ptr[node];
+    uint32_t end   = ind_ptr[node + 1];
+    if (start == end) return;
+
+    // Each thread computes a local minimum
+    uint32_t local_min = UINT32_MAX;
+
+    for (uint32_t k = start + threadIdx.x;
+         k < end;
+         k += blockDim.x)
+    {
+        uint32_t nbr = indices[k];
+        local_min = min(local_min, labels[nbr]);
+    }
+
+    // Shared memory reduction
+    extern __shared__ uint32_t sdata[];
+    sdata[threadIdx.x] = local_min;
+    __syncthreads();
+
+    // Standard block reduction
+    for (uint32_t stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) {
+            sdata[threadIdx.x] =
+                min(sdata[threadIdx.x], sdata[threadIdx.x + stride]);
+        }
+        __syncthreads();
+    }
+
+    // Thread 0 performs the update
+    if (threadIdx.x == 0 && sdata[0] < labels[node]) {
+        labels[node] = sdata[0];
+        *changed_flag = 1;   // still no atomics, same assumption
+
+        // Wake neighbors
+        for (uint32_t k = start; k < end; k++) {
+            next_active[indices[k]] = 1;
+        }
+    }
+}
+
+
 __global__ void initialize_kernel (uint32_t* labels, uint8_t* active, uint8_t *next_active, uint32_t n_nodes)
 {
     uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
